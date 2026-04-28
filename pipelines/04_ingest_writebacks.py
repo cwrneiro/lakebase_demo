@@ -11,7 +11,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install --quiet "psycopg[binary]"
+# MAGIC %pip install --quiet "psycopg[binary]" "databricks-sdk>=0.81.0"
 
 # COMMAND ----------
 
@@ -71,11 +71,8 @@ print(f"high watermark: {high_watermark}")
 # COMMAND ----------
 
 # Get connection details
-endpoints = w.api_client.do(
-    "GET",
-    f"/api/2.0/postgres/projects/{PROJECT_ID}/branches/production/endpoints",
-)
-host = endpoints["endpoints"][0]["status"]["hosts"]["host"]
+endpoints_resp = list(w.postgres.list_endpoints(parent=f"projects/{PROJECT_ID}/branches/production"))
+host = endpoints_resp[0].status.hosts.host
 cred = w.postgres.generate_database_credential(endpoint=ENDPOINT_PATH)
 token = cred.token
 me = w.current_user.me().user_name
