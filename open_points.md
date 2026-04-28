@@ -18,7 +18,7 @@ Tracking what still needs verification, hardening, or polish before this repo is
 
 ## Still requiring real verification before claiming fork-and-deploy
 
-1. **Full teardown + clean re-bootstrap cycle** — never run end-to-end. The original `teardown.sh` had stale synced-table paths (now fixed in `8c06f51`); the fix is unverified.
+1. ~~**Full teardown + clean re-bootstrap cycle**~~ — **teardown verified clean 2026-04-28** (synced tables, bundle destroy, project delete all worked, ~30s wall). Bootstrap immediately afterward hit a new race (see #23) so the *re-bootstrap* half is still unverified.
 2. **`scripts/local-dev.sh`** — never started. Default `LAKEBASE_DATABASE` was wrong (now fixed); also adds `LAKEBASE_SYNC_SCHEMA` export. Untested because IP allowlisting blocks the local Postgres connection from a typical dev box.
 3. **Browser smoke test of the UI** — `curl` confirms the API works, but UserList / UserDetail / ScoreBadge / ExplainPanel rendering is unverified visually. Sort/filter/pagination behaviour and toast notifications never observed.
 4. **Multi-deployer scenario** — would the SP grants leak across deployers sharing one workspace? Untested.
@@ -39,6 +39,11 @@ Tracking what still needs verification, hardening, or polish before this repo is
 13. **`config.env` removed from `resources/app.yml`** — replaced with a comment. If the upstream behaviour gets fixed, the comment should be deleted and `config.env` re-added.
 14. **DABs sometimes reports `Deployment complete!` without actually creating the synced UC schema** — observed once during testing. `bootstrap.sh` now defensively does `CREATE SCHEMA IF NOT EXISTS` between passes. Worth flagging upstream if reproducible.
 15. **Synced tables created via `databricks postgres create-synced-table` are imperative** — not in the bundle. If a future DABs version supports `synced_database_tables` resources targeting Autoscaling cleanly, we can move them in.
+
+## Bootstrap robustness (discovered during the verification cycle on 2026-04-28)
+
+23. **Bootstrap fails immediately after a fresh teardown** with Terraform error `project with such id already exists in the workspace`, even though `databricks api get .../projects/lakebase-demo` returns `not found` and the project is absent from `list-projects`. Reproduced twice, ~30s apart, on `<your-workspace-profile>` / `<your-catalog>`. Almost certainly a Lakebase server-side soft-delete reservation window. Workaround candidates: (a) sleep N minutes between teardown and bootstrap, (b) randomize `lakebase_project_id` per run, (c) retry-with-backoff on Pass 1. Needs to be fixed before the demo is forkable — first-time forkers won't hit it (no prior project), but anyone who does `teardown && bootstrap` to recover from a bad state will.
+24. **`bootstrap.sh` endpoint-wait loop fragility** — `set -e -o pipefail` is on; if `databricks postgres list-endpoints ...` errors (e.g., project not yet visible after Pass 1, or transient API hiccup), the loop exits silently on the first iteration without retrying. Fix: `|| true` on the assignment, or branch on `state == ""` before grepping. Saw this manifest as a silent hang then exit during the #23 failure mode.
 
 ## Functional follow-ups (the demo works without these but they're tempting)
 
