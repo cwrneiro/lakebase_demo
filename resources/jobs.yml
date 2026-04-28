@@ -20,9 +20,17 @@ resources:
             base_parameters:
               catalog: ${var.catalog_name}
               schema_prefix: ${var.schema_prefix}
-        - task_key: score_users
+        - task_key: train_churn_model
           depends_on:
             - task_key: compute_features
+          notebook_task:
+            notebook_path: ../pipelines/03a_train_churn_model.py
+            base_parameters:
+              catalog: ${var.catalog_name}
+              schema_prefix: ${var.schema_prefix}
+        - task_key: score_users
+          depends_on:
+            - task_key: train_churn_model
           notebook_task:
             notebook_path: ../pipelines/03_score_users.py
             base_parameters:
