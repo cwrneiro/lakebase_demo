@@ -72,4 +72,5 @@ export interface ExplainResponse {
 export interface RescoreResponse {
   run_id: number
   run_page_url: string | null
+  operator: string | null
 }

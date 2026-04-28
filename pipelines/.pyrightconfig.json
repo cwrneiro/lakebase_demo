@@ -1,0 +1,6 @@
+{
+  "_comment": "Notebook globals (dbutils, spark) are injected by Databricks; suppress undefined-variable noise here without relaxing pyright for the rest of the repo.",
+  "include": ["**/*.py"],
+  "reportUndefinedVariable": "none",
+  "reportMissingImports": "warning"
+}
