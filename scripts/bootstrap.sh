@@ -102,6 +102,12 @@ ok "frontend built → app/frontend/dist/"
 # project exists we look up the real id and re-deploy.
 
 step "Pass 1: deploy bundle (Lakebase project + UC schemas + jobs)"
+# Defensive: nuke any stale sync-snapshot from a prior failed Pass 1. When
+# Pass 1 fails (placeholder DB error or anything else after the upload phase),
+# the CLI persists its sync-snapshot to disk; on retry it then skips files
+# it thinks are already in the workspace, even when they aren't. See
+# open_points.md #26.
+rm -f ".databricks/bundle/$TARGET/sync-snapshots/"*.json 2>/dev/null || true
 databricks bundle deploy -p "$PROFILE" -t "$TARGET" 2>&1 | tail -20 || true
 # tail output but ignore non-zero exit; the App resource is expected to fail.
 
@@ -226,7 +232,25 @@ create_synced () {
 create_synced "$CATALOG.${SCHEMA_PREFIX}_synced.users"           "user_id"           "$CATALOG.${SCHEMA_PREFIX}_raw.users"
 create_synced "$CATALOG.${SCHEMA_PREFIX}_synced.user_scores"     "user_id"           "$CATALOG.${SCHEMA_PREFIX}_scored.user_scores"
 create_synced "$CATALOG.${SCHEMA_PREFIX}_synced.recommendations" "recommendation_id" "$CATALOG.${SCHEMA_PREFIX}_scored.recommendations"
-ok "synced tables created"
+ok "synced tables queued"
+
+# Wait for the synced tables to be visible in Postgres before granting.
+# `GRANT SELECT ON ALL TABLES IN SCHEMA` is evaluated at grant time and
+# silently skips tables that aren't there yet, so without this wait the
+# fresh-deploy path 500s on every read until a manual re-grant.
+step "Waiting for synced tables to be queryable in Postgres"
+for tbl in users user_scores recommendations; do
+  for _ in {1..30}; do
+    if "${PSQL_ENV[@]}" psql -tAc \
+         "SELECT 1 FROM information_schema.tables WHERE table_schema = '${SCHEMA_PREFIX}_synced' AND table_name = '$tbl'" \
+         "$CONN_APP" 2>/dev/null | grep -q '^1$'; then
+      echo "  $tbl visible in PG"
+      break
+    fi
+    sleep 6
+  done
+done
+ok "synced tables visible"
 
 # ---------- 10. Grant Postgres perms to the App SP ---------------------------
 step "Granting Postgres perms to the App service principal"
@@ -243,16 +267,19 @@ for _ in {1..15}; do
   sleep 4
 done
 
-"${PSQL_ENV[@]}" psql -v ON_ERROR_STOP=1 "$CONN_APP" -c \
-  "GRANT USAGE ON SCHEMA \"${SCHEMA_PREFIX}_synced\" TO \"$SP\""
-"${PSQL_ENV[@]}" psql -v ON_ERROR_STOP=1 "$CONN_APP" -c \
-  "GRANT SELECT ON ALL TABLES IN SCHEMA \"${SCHEMA_PREFIX}_synced\" TO \"$SP\""
-"${PSQL_ENV[@]}" psql -v ON_ERROR_STOP=1 "$CONN_APP" -c \
-  "ALTER DEFAULT PRIVILEGES IN SCHEMA \"${SCHEMA_PREFIX}_synced\" GRANT SELECT ON TABLES TO \"$SP\""
-"${PSQL_ENV[@]}" psql -v ON_ERROR_STOP=1 "$CONN_APP" -c \
-  "GRANT USAGE ON SCHEMA public TO \"$SP\""
-"${PSQL_ENV[@]}" psql -v ON_ERROR_STOP=1 "$CONN_APP" -c \
-  "GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_actions TO \"$SP\""
+# Synced tables are owned by databricks-managed roles (e.g. databricks_writer_*),
+# not by the deployer, so direct GRANTs from the deployer would be silent
+# no-ops. SET ROLE databricks_superuser (the deployer is automatically a
+# member) so the GRANT lands on tables the deployer doesn't own. See
+# open_points.md #27.
+"${PSQL_ENV[@]}" psql -v ON_ERROR_STOP=1 "$CONN_APP" <<EOF
+SET ROLE databricks_superuser;
+GRANT USAGE ON SCHEMA "${SCHEMA_PREFIX}_synced" TO "$SP";
+GRANT SELECT ON ALL TABLES IN SCHEMA "${SCHEMA_PREFIX}_synced" TO "$SP";
+RESET ROLE;
+GRANT USAGE ON SCHEMA public TO "$SP";
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_actions TO "$SP";
+EOF
 
 # `ALTER ROLE ... SET search_path` requires ADMIN OPTION on the SP role,
 # which most deployers don't have. It's optional — `OAuthConnection` already
@@ -268,14 +295,32 @@ else
 fi
 
 # ---------- 11. Deploy the App code ------------------------------------------
-step "Deploying app code"
 APP_NAME="$(databricks bundle summary -p "$PROFILE" -t "$TARGET" -o json \
   | jq -r '.resources.apps.demo_app.name // "lakebase-demo"')"
 APP_SOURCE="/Workspace/Users/$EMAIL/.bundle/lakebase-reverse-etl-demo/$TARGET/files/app"
+
+# `databricks apps deploy` requires the app's compute to be RUNNING. On a
+# first-time deploy the bundle creates the App resource in STOPPED state,
+# so we have to start it (idempotent — no-op if already running) and wait
+# for compute before deploying code.
+step "Starting app compute"
+databricks apps start "$APP_NAME" -p "$PROFILE" >/dev/null 2>&1 || true
+for _ in {1..40}; do
+  COMPUTE_STATE="$(databricks apps get "$APP_NAME" -p "$PROFILE" -o json \
+    | jq -r '.compute_status.state // .status.state // "UNKNOWN"')"
+  echo "  compute: $COMPUTE_STATE"
+  [[ "$COMPUTE_STATE" == "ACTIVE" || "$COMPUTE_STATE" == "RUNNING" ]] && break
+  sleep 6
+done
+ok "app compute up ($COMPUTE_STATE)"
+
+step "Deploying app code"
 databricks apps deploy "$APP_NAME" --source-code-path "$APP_SOURCE" -p "$PROFILE" >/dev/null
 ok "app code deployed"
 
-# Restart in case the pool cached old connections
+# Restart so the pool drops cached connections that may have failed during
+# the synced-table grant race. `apps deploy` already replaces the running
+# code; this is belt-and-suspenders.
 databricks apps stop "$APP_NAME" -p "$PROFILE" >/dev/null 2>&1 || true
 sleep 5
 databricks apps start "$APP_NAME" -p "$PROFILE" >/dev/null
