@@ -39,3 +39,6 @@ databricks.yml.local
 
 # Rendered from app/app.yaml.tmpl by scripts/bootstrap.sh
 app/app.yaml
+
+# Claude Code agent worktrees
+.claude/

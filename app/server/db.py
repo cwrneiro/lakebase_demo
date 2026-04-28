@@ -32,7 +32,7 @@ class OAuthConnection(psycopg.Connection):
     """
 
     @classmethod
-    def connect(cls, conninfo: str = "", **kwargs: Any) -> "OAuthConnection":
+    def connect(cls, conninfo: str = "", **kwargs: Any) -> OAuthConnection:
         endpoint_name = os.environ["ENDPOINT_NAME"]
         w = get_workspace_client()
         credential = w.postgres.generate_database_credential(endpoint=endpoint_name)

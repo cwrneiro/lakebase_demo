@@ -32,6 +32,17 @@ asyncio_mode = "auto"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = [".claude", "pipelines"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+
+# Pipeline files are Databricks notebooks; `dbutils` and `spark` are injected
+# globals, not imports. They live under `pipelines/` which is fully excluded
+# above, but if someone moves them, this per-file-ignore keeps F821 quiet.
+[tool.ruff.lint.per-file-ignores]
+"pipelines/*" = ["F821"]
+# FastAPI route signatures use `Depends(...)` / `Query(...)` / `Path(...)` as
+# argument defaults — that's the framework's dependency-injection idiom, not
+# a bug.
+"app/server/routes/*" = ["B008"]

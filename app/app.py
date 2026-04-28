@@ -9,7 +9,6 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-
 from server.db import pool
 from server.routes import actions, admin, explain, user_detail, users
 

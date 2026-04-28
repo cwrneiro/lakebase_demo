@@ -47,7 +47,15 @@ def test_create_action_happy_path(client) -> None:
     insert_sql = insert_call.args[0]
     insert_params = insert_call.args[1]
     assert "INSERT INTO user_actions" in insert_sql
-    assert insert_params == ("u_001", "rec_1", "accepted", "Reached out via email.", operator)
+    # 6th param is the optional Idempotency-Key (None when header is absent).
+    assert insert_params == (
+        "u_001",
+        "rec_1",
+        "accepted",
+        "Reached out via email.",
+        operator,
+        None,
+    )
 
 
 def test_create_action_uses_local_dev_fallback_operator(client) -> None:
