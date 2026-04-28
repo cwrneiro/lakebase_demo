@@ -24,3 +24,4 @@ resources:
       # NOTE: env vars live in `app/app.yaml` (rendered from `app.yaml.tmpl` by
       # bootstrap.sh). The bundle's `config.env` field is not currently
       # propagated to the App's runtime deployment by `databricks bundle deploy`.
+      # See docs/upstream/01_config_env_not_propagating.md for the writeup.
