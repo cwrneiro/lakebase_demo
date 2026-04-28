@@ -27,18 +27,22 @@ cd "$ROOT"
 step() { printf "\n\033[1;36m▸ %s\033[0m\n" "$*"; }
 ok()   { printf "\033[1;32m✓ %s\033[0m\n" "$*"; }
 
-PROJECT_ID="$(databricks bundle summary -p "$PROFILE" -t "$TARGET" -o json \
-  2>/dev/null | jq -r '.variables.lakebase_project_id.value // .variables.lakebase_project_id.default // "lakebase-demo"')"
-CATALOG="$(databricks bundle summary -p "$PROFILE" -t "$TARGET" -o json \
-  2>/dev/null | jq -r '.variables.catalog_name.value // .variables.catalog_name.default // "main"')"
+var_lookup() {
+  local k="$1" d="$2"
+  databricks bundle summary -p "$PROFILE" -t "$TARGET" -o json 2>/dev/null \
+    | jq -r ".variables.\"$k\".value // .variables.\"$k\".default // \"$d\""
+}
+PROJECT_ID="${BUNDLE_VAR_lakebase_project_id:-$(var_lookup lakebase_project_id lakebase-demo)}"
+CATALOG="${BUNDLE_VAR_catalog_name:-$(var_lookup catalog_name main)}"
+SCHEMA_PREFIX="${BUNDLE_VAR_schema_prefix:-$(var_lookup schema_prefix lakebase_demo)}"
 
 if [[ "$ASSUME_YES" != "1" ]]; then
   echo
   echo "This will DELETE:"
-  echo "  - the deployed bundle resources (jobs, app)"
+  echo "  - the deployed bundle resources (UC schemas, jobs, app)"
   echo "  - Lakebase project: projects/$PROJECT_ID (and ALL data inside it)"
-  echo "  - UC catalog:       $CATALOG"
-  echo "  - Synced tables registered against $CATALOG.public.*"
+  echo "  - Synced tables in $CATALOG.${SCHEMA_PREFIX}_synced.*"
+  echo "  - The UC catalog $CATALOG itself is NOT deleted (the bundle does not own it)"
   echo
   read -r -p "Type 'destroy' to continue: " confirm
   [[ "$confirm" == "destroy" ]] || { echo "aborted"; exit 1; }
@@ -46,7 +50,8 @@ fi
 
 step "Deleting synced tables (best-effort)"
 for tbl in users user_scores recommendations; do
-  databricks postgres delete-synced-table "$CATALOG.public.$tbl" \
+  databricks postgres delete-synced-table \
+    "synced_tables/$CATALOG.${SCHEMA_PREFIX}_synced.$tbl" \
     -p "$PROFILE" 2>/dev/null || true
 done
 ok "synced tables deleted"

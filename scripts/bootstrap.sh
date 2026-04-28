@@ -152,6 +152,20 @@ step "Pass 2: deploy bundle (App resource bound to Lakebase database)"
 databricks bundle deploy -p "$PROFILE" -t "$TARGET" --auto-approve
 ok "bundle deployed"
 
+# ---------- 5b. Defensive schema creation ------------------------------------
+# Belt-and-suspenders: DABs has been observed to report "Deployment complete!"
+# without actually creating the synced schema. Synced-table creation later
+# would fail confusingly. Create it imperatively if missing.
+step "Ensuring UC schemas exist"
+WID="$(databricks warehouses list -p "$PROFILE" -o json | jq -r '.[0].id')"
+for s in raw curated scored synced; do
+  databricks api post /api/2.0/sql/statements -p "$PROFILE" \
+    --json "$(jq -n --arg c "$CATALOG" --arg s "${SCHEMA_PREFIX}_${s}" --arg w "$WID" \
+      '{statement: "CREATE SCHEMA IF NOT EXISTS \($c).\($s)", warehouse_id: $w, wait_timeout: "30s"}')" \
+    >/dev/null
+done
+ok "schemas verified"
+
 # ---------- 6. Apply user_actions schema -------------------------------------
 step "Applying lakebase/00_schema.sql to $DATABASE"
 HOST="$(databricks postgres list-endpoints "projects/$PROJECT_ID/branches/production" \
@@ -239,9 +253,19 @@ done
   "GRANT USAGE ON SCHEMA public TO \"$SP\""
 "${PSQL_ENV[@]}" psql -v ON_ERROR_STOP=1 "$CONN_APP" -c \
   "GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_actions TO \"$SP\""
-"${PSQL_ENV[@]}" psql -v ON_ERROR_STOP=1 "$CONN_APP" -c \
-  "ALTER ROLE \"$SP\" SET search_path TO \"${SCHEMA_PREFIX}_synced\", public"
-ok "SP $SP granted; default search_path set"
+
+# `ALTER ROLE ... SET search_path` requires ADMIN OPTION on the SP role,
+# which most deployers don't have. It's optional — `OAuthConnection` already
+# runs `SET search_path` per session in `app/server/db.py`, so we tolerate
+# this failing.
+if "${PSQL_ENV[@]}" psql "$CONN_APP" -c \
+     "ALTER ROLE \"$SP\" SET search_path TO \"${SCHEMA_PREFIX}_synced\", public" \
+     >/dev/null 2>&1; then
+  ok "SP $SP granted; default search_path set on the role"
+else
+  echo "  (skipped role-level search_path; per-session SET in OAuthConnection covers it)"
+  ok "SP $SP granted"
+fi
 
 # ---------- 11. Deploy the App code ------------------------------------------
 step "Deploying app code"

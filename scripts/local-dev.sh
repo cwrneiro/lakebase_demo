@@ -26,7 +26,8 @@ if [[ -f .env ]]; then
 fi
 
 PROJECT_ID="${LAKEBASE_PROJECT_ID:-lakebase-demo}"
-DATABASE="${LAKEBASE_DATABASE:-app}"
+DATABASE="${LAKEBASE_DATABASE:-databricks_postgres}"
+SCHEMA_PREFIX="${SCHEMA_PREFIX:-lakebase_demo}"
 
 # Resolve PG* env vars from the workspace if not already set
 export DATABRICKS_PROFILE="$PROFILE"
@@ -42,6 +43,7 @@ export PGSSLMODE="${PGSSLMODE:-require}"
 export ENDPOINT_NAME="${ENDPOINT_NAME:-projects/$PROJECT_ID/branches/production/endpoints/primary}"
 export SERVING_ENDPOINT="${SERVING_ENDPOINT:-databricks-claude-sonnet-4-5}"
 export ENABLE_LLM_EXPLAIN="${ENABLE_LLM_EXPLAIN:-true}"
+export LAKEBASE_SYNC_SCHEMA="${LAKEBASE_SYNC_SCHEMA:-${SCHEMA_PREFIX}_synced}"
 export RESCORE_JOB_ID="${RESCORE_JOB_ID:-0}"  # 0 disables rescore button locally
 
 # Install Python deps if not present
