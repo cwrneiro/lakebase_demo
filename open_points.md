@@ -18,18 +18,18 @@ Tracking what still needs verification, hardening, or polish before this repo is
 
 ## Still requiring real verification before claiming fork-and-deploy
 
-1. ~~**Full teardown + clean re-bootstrap cycle**~~ — **teardown verified clean 2026-04-28** (synced tables, bundle destroy, project delete all worked, ~30s wall). Bootstrap immediately afterward hit a new race (see #23) so the *re-bootstrap* half is still unverified.
+1. ~~**Full teardown + clean re-bootstrap cycle**~~ — **verified end-to-end 2026-04-28**. Teardown ~30s wall; fresh bootstrap got the app live at `https://lakebase-demo-<your-workspace-id>.aws.databricksapps.com` after the sync (#25), snapshot (#26), grant (#27), and app-start ordering fixes landed. All five routes return 200/422 to a real OBO token. Browser smoke (#3) confirms the UI loads users and runs the LLM rationale.
 2. **`scripts/local-dev.sh`** — never started. Default `LAKEBASE_DATABASE` was wrong (now fixed); also adds `LAKEBASE_SYNC_SCHEMA` export. Untested because IP allowlisting blocks the local Postgres connection from a typical dev box.
-3. **Browser smoke test of the UI** — `curl` confirms the API works, but UserList / UserDetail / ScoreBadge / ExplainPanel rendering is unverified visually. Sort/filter/pagination behaviour and toast notifications never observed.
+3. ~~**Browser smoke test of the UI**~~ — **verified 2026-04-28** via `web-devloop-tester`. UserList renders 50 rows/page, sort toggles asc/desc, pagination + Previous-disable on page 1 work, UserDetail shows metadata + ScoreBadge (red=high, green=low) + recommendations + ExplainPanel; LLM "Generate" returns a 3–4 sentence rationale instantly; Accept writes to action history with operator email. Zero console errors, zero 5xx, all 7 XHRs returned 200. One residual: tier-filter combobox shows the options in the a11y tree but a programmatic click didn't open the visual menu — keyboard works, may be an MCP-driver quirk vs. a real a11y bug. Worth keyboard-testing in person.
 4. **Multi-deployer scenario** — would the SP grants leak across deployers sharing one workspace? Untested.
 
 ## Polish gaps with low blast radius
 
-5. **No CI** — `databricks bundle validate`, `npm run build`, and `python -c "import app"` all run in seconds. A single GitHub Actions job would catch >80% of regressions before fork-time.
-6. **`lucide-react@1.8.0`** — npm resolved this version; current canonical is in the 0.4xx range. Unverified visually. Build succeeds (necessary but not sufficient).
-7. **Pyright noise in pipeline notebooks** — `dbutils`/`spark` flagged as undefined because they are notebook globals. Cosmetic, but a future contributor opens the file and sees squiggles. Fix: a `pipelines/.pyrightconfig.json` excluding those modules.
-8. **No `screenshot.png` in README** — plan called for one. Can't take it without browser verification (#3).
-9. **No tests** — backend has no pytest, frontend has no vitest. Routes' SQL is verified only by the manual API session.
+5. ~~**No CI**~~ — fixed in Wave 1: `.github/workflows/ci.yml` runs ruff, pytest, vitest, tsc, npm build, and bundle YAML-syntax check on PR + push.
+6. ~~**`lucide-react@1.8.0`**~~ — **icons render correctly** in the deployed app (verified 2026-04-28). Sort arrows, filter, sparkles, check, X, refresh all paint as proper SVGs with no visual artifacts. The version string is still suspicious vs. the canonical 0.4xx series and worth investigating if a lucide upgrade ever surfaces a regression — but functionally not blocking.
+7. ~~**Pyright noise in pipeline notebooks**~~ — fixed in Wave 1: `pipelines/.pyrightconfig.json` suppresses `reportUndefinedVariable`.
+8. ~~**No `screenshot.png` in README**~~ — added: `docs/screenshots/list-view-high-risk.png` is the README hero shot; `docs/screenshots/detail-with-recommendations.png` covers the detail view; `screenshot.png` at repo root for backwards reference.
+9. ~~**No tests**~~ — fixed in Wave 1: 11 backend pytest + 12 frontend vitest tests, all green in CI.
 10. **psql install path on Linux** — bootstrap auto-adds `/opt/homebrew/opt/postgresql@16/bin` (macOS) but expects `psql` on PATH for Linux users. Documented; not auto-resolved.
 
 ## Architectural items worth filing upstream / following up

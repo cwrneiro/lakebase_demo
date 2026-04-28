@@ -2,6 +2,8 @@
 
 Reference implementation: a Databricks lakehouse computes per-user churn risk and next-best-action recommendations, **continuously syncs** them to **Lakebase Postgres**, and a **Databricks App** (FastAPI + React) lets operators triage the risk-ranked queue. Operator decisions write back to Lakebase, then flow back to UC for closed-loop learning. A Foundation Model panel generates a per-user rationale on demand.
 
+![Operator queue, sorted by risk](docs/screenshots/list-view-high-risk.png)
+
 The demo is generic B2C subscription data — translates 1:1 to healthcare member risk, fintech retention, SaaS churn, etc.
 
 ## Architecture
