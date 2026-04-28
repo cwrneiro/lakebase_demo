@@ -45,22 +45,38 @@ include:
   - resources/*.yml
 
 # The frontend's `app/frontend/dist/` is gitignored (build artifact, not source)
-# but it MUST be uploaded so the Databricks App can serve the SPA. Force the
-# bundle sync to include it. `app/frontend/{node_modules,src,public}` stay
-# excluded to keep upload payloads small and to avoid leaking dev-only files.
+# but it MUST be uploaded so the Databricks App can serve the SPA.
+# On CLI v0.298.0+, `sync.include` is an EXCLUSIVE allowlist (not additive on
+# top of git-tracked files), so we have to enumerate every top-level path we
+# want shipped. See open_points.md #25 for the upstream issue.
 sync:
   include:
-    # `app/app.yaml` is rendered from `app/app.yaml.tmpl` by `bootstrap.sh` and
-    # is gitignored, so include it explicitly.
-    - app/app.yaml
-    - app/frontend/dist/**
+    - app/**
+    - pipelines/**
+    - lakebase/**
+    - scripts/**
+    - resources/**
+    - databricks.yml
+    - pyproject.toml
+    - uv.lock
+    - README.md
+    - LICENSE
   exclude:
     - app/frontend/node_modules/**
     - app/frontend/src/**
+    - app/frontend/public/**
     - app/frontend/package-lock.json
+    - app/frontend/package.json
+    - app/frontend/vite.config.ts
+    - app/frontend/vitest.config.ts
+    - app/frontend/tsconfig*.json
+    - app/frontend/eslint.config.js
+    - app/frontend/index.html
+    - app/server/tests/**
     - "**/__pycache__/**"
     - "**/.venv/**"
     - "**/*.pyc"
+    - "**/.pytest_cache/**"
 
 targets:
   dev:
