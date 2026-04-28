@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from server.config import get_workspace_client, get_workspace_host
+from server.deps import operator_identity
 from server.models import RescoreResponse
 
 router = APIRouter()
 
 
 @router.post("/admin/rescore", response_model=RescoreResponse)
-def trigger_rescore() -> RescoreResponse:
+def trigger_rescore(
+    operator: str = Depends(operator_identity),
+) -> RescoreResponse:
     job_id_raw = os.environ.get("RESCORE_JOB_ID")
     if not job_id_raw:
         raise HTTPException(
@@ -45,4 +48,4 @@ def trigger_rescore() -> RescoreResponse:
     host = get_workspace_host()
     run_page_url = f"{host}/jobs/{job_id}/runs/{run_id}" if host else None
 
-    return RescoreResponse(run_id=int(run_id), run_page_url=run_page_url)
+    return RescoreResponse(run_id=int(run_id), run_page_url=run_page_url, operator=operator)

@@ -91,3 +91,4 @@ class ExplainResponse(BaseModel):
 class RescoreResponse(BaseModel):
     run_id: int
     run_page_url: str | None = None
+    operator: str | None = None
