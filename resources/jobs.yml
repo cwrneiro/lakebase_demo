@@ -1,0 +1,63 @@
+resources:
+  jobs:
+    init_job:
+      name: lakebase-demo-init
+      description: |
+        One-shot job: generates synthetic data, computes features, scores users.
+        Run after bundle deploy. Idempotent.
+      tasks:
+        - task_key: generate_synthetic_data
+          notebook_task:
+            notebook_path: ../pipelines/01_generate_synthetic_data.py
+            base_parameters:
+              catalog: ${var.catalog_name}
+              schema_prefix: ${var.schema_prefix}
+        - task_key: compute_features
+          depends_on:
+            - task_key: generate_synthetic_data
+          notebook_task:
+            notebook_path: ../pipelines/02_compute_features.py
+            base_parameters:
+              catalog: ${var.catalog_name}
+              schema_prefix: ${var.schema_prefix}
+        - task_key: score_users
+          depends_on:
+            - task_key: compute_features
+          notebook_task:
+            notebook_path: ../pipelines/03_score_users.py
+            base_parameters:
+              catalog: ${var.catalog_name}
+              schema_prefix: ${var.schema_prefix}
+
+    writeback_ingest_job:
+      name: lakebase-demo-writeback-ingest
+      description: |
+        Pulls user_actions from Lakebase into UC for closed-loop learning.
+        Runs every minute.
+      schedule:
+        quartz_cron_expression: "0 * * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+      tasks:
+        - task_key: ingest_writebacks
+          notebook_task:
+            notebook_path: ../pipelines/04_ingest_writebacks.py
+            base_parameters:
+              catalog: ${var.catalog_name}
+              schema_prefix: ${var.schema_prefix}
+              lakebase_project_id: ${var.lakebase_project_id}
+              lakebase_database: ${var.lakebase_database}
+
+    rescore_job:
+      name: lakebase-demo-rescore
+      description: |
+        Triggered manually from the app's "Re-score" button. Re-runs scoring
+        against the latest features + writeback signals.
+      tasks:
+        - task_key: rescore
+          notebook_task:
+            notebook_path: ../pipelines/03_score_users.py
+            base_parameters:
+              catalog: ${var.catalog_name}
+              schema_prefix: ${var.schema_prefix}
+              include_writeback_signal: "true"

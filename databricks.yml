@@ -1,0 +1,74 @@
+bundle:
+  name: lakebase-reverse-etl-demo
+
+variables:
+  catalog_name:
+    description: |
+      Existing UC catalog where the demo's schemas will be created. The bundle
+      does NOT create the catalog (that needs metastore-admin perms). Pick a
+      catalog where you can create schemas and (ideally) tables.
+    default: main
+  schema_prefix:
+    description: |
+      Schema name prefix. Schemas created: ${prefix}_raw, ${prefix}_curated,
+      ${prefix}_scored. Lets multiple demo deployments share a catalog.
+    default: lakebase_demo
+  lakebase_project_id:
+    description: Lakebase Autoscaling project id (3-63 chars, lowercase, hyphens).
+    default: lakebase-demo
+  lakebase_database:
+    description: |
+      Postgres database inside the Lakebase project. `databricks_postgres` is
+      the database Lakebase auto-creates with each project; using it avoids a
+      separate CREATE DATABASE step.
+    default: databricks_postgres
+  lakebase_database_resource_id:
+    description: |
+      The auto-generated Lakebase Database resource id (e.g. db-xxxx-yyyy).
+      Filled in by `bootstrap.sh` after the project exists; not declarable
+      in DABs because there is no `postgres_databases` bundle resource.
+    default: PLACEHOLDER_DATABASE_RESOURCE_ID
+  app_name:
+    description: Databricks App name.
+    default: lakebase-demo
+  serving_endpoint:
+    description: Foundation Model serving endpoint for the "explain score" panel.
+    default: databricks-claude-sonnet-4-5
+  enable_llm_explain:
+    description: Toggle the LLM explain panel without rebuilding.
+    default: "true"
+  notification_email:
+    description: Email to notify on init job failures (optional).
+    default: ""
+
+include:
+  - resources/*.yml
+
+# The frontend's `app/frontend/dist/` is gitignored (build artifact, not source)
+# but it MUST be uploaded so the Databricks App can serve the SPA. Force the
+# bundle sync to include it. `app/frontend/{node_modules,src,public}` stay
+# excluded to keep upload payloads small and to avoid leaking dev-only files.
+sync:
+  include:
+    # `app/app.yaml` is rendered from `app/app.yaml.tmpl` by `bootstrap.sh` and
+    # is gitignored, so include it explicitly.
+    - app/app.yaml
+    - app/frontend/dist/**
+  exclude:
+    - app/frontend/node_modules/**
+    - app/frontend/src/**
+    - app/frontend/package-lock.json
+    - "**/__pycache__/**"
+    - "**/.venv/**"
+    - "**/*.pyc"
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prod:
+    mode: production
+    variables:
+      lakebase_project_id: lakebase-demo-prod
+      app_name: lakebase-demo-prod

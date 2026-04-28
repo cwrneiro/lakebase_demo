@@ -1,0 +1,29 @@
+[project]
+name = "lakebase-reverse-etl-demo"
+version = "0.1.0"
+description = "Reference demo: Databricks Lakebase as a reverse-ETL target backing a Databricks App"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "psycopg[binary,pool]>=3.2.0",
+    "databricks-sdk>=0.81.0",
+    "openai>=1.52.0",
+    "pydantic>=2.0.0",
+    "python-multipart>=0.0.9",
+    "polars>=1.10.0",
+    "mimesis>=18.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

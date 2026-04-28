@@ -1,0 +1,26 @@
+resources:
+  apps:
+    demo_app:
+      name: ${var.app_name}
+      description: "Lakebase Reverse-ETL Demo — operator queue for risk-ranked users"
+      source_code_path: ${workspace.file_path}/app
+      resources:
+        - name: lakebase
+          description: "Lakebase Postgres backing the operator app"
+          postgres:
+            branch: projects/${var.lakebase_project_id}/branches/production
+            database: projects/${var.lakebase_project_id}/branches/production/databases/${var.lakebase_database_resource_id}
+            permission: CAN_CONNECT_AND_CREATE
+        - name: claude
+          description: "Foundation Model API for the 'explain score' panel"
+          serving_endpoint:
+            name: ${var.serving_endpoint}
+            permission: CAN_QUERY
+        - name: rescore
+          description: "Job triggered by the app's 'Re-score' button"
+          job:
+            id: ${resources.jobs.rescore_job.id}
+            permission: CAN_MANAGE_RUN
+      # NOTE: env vars live in `app/app.yaml` (rendered from `app.yaml.tmpl` by
+      # bootstrap.sh). The bundle's `config.env` field is not currently
+      # propagated to the App's runtime deployment by `databricks bundle deploy`.

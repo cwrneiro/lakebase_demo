@@ -1,0 +1,9 @@
+resources:
+  postgres_projects:
+    demo_lakebase:
+      project_id: ${var.lakebase_project_id}
+      display_name: "Lakebase Reverse-ETL Demo"
+      pg_version: 17
+      default_endpoint_settings:
+        autoscaling_limit_min_cu: 0.5
+        autoscaling_limit_max_cu: 2.0

@@ -1,0 +1,27 @@
+# NOTE: This file is a template. `scripts/bootstrap.sh` renders it to
+# `app/app.yaml` (gitignored) before deploy by substituting the ${VAR}
+# placeholders below with bundle variable values.
+command:
+  - python
+  - -m
+  - uvicorn
+  - app:app
+  - --host
+  - 0.0.0.0
+  - --port
+  - "8000"
+env:
+  - name: ENDPOINT_NAME
+    value: "projects/${LAKEBASE_PROJECT_ID}/branches/production/endpoints/primary"
+  - name: SERVING_ENDPOINT
+    value: "${SERVING_ENDPOINT}"
+  - name: ENABLE_LLM_EXPLAIN
+    value: "${ENABLE_LLM_EXPLAIN}"
+  - name: CATALOG_NAME
+    value: "${CATALOG_NAME}"
+  - name: LAKEBASE_DATABASE
+    value: "${LAKEBASE_DATABASE}"
+  - name: LAKEBASE_SYNC_SCHEMA
+    value: "${LAKEBASE_SYNC_SCHEMA}"
+  - name: RESCORE_JOB_ID
+    value: "${RESCORE_JOB_ID}"

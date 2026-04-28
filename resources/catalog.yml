@@ -1,0 +1,23 @@
+# The bundle does NOT create a UC catalog — `CREATE CATALOG` is a metastore-
+# admin privilege that most fork-and-deploy users won't have. Set
+# `var.catalog_name` to a catalog where you can create schemas. The schemas
+# below are created by the bundle and are scoped via `var.schema_prefix` so
+# multiple instances of this demo can coexist in the same catalog.
+resources:
+  schemas:
+    raw_schema:
+      catalog_name: ${var.catalog_name}
+      name: ${var.schema_prefix}_raw
+      comment: "Raw synthetic events, users, subscriptions"
+    curated_schema:
+      catalog_name: ${var.catalog_name}
+      name: ${var.schema_prefix}_curated
+      comment: "Aggregated user features"
+    scored_schema:
+      catalog_name: ${var.catalog_name}
+      name: ${var.schema_prefix}_scored
+      comment: "Churn risk scores, recommendations, writeback CDC"
+    synced_schema:
+      catalog_name: ${var.catalog_name}
+      name: ${var.schema_prefix}_synced
+      comment: "Holds the UC virtual tables backed by Lakebase synced tables"
