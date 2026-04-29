@@ -38,6 +38,7 @@ MODEL_URI = f"models:/{CATALOG}.{PREFIX}_curated.churn_model@champion"
 # COMMAND ----------
 
 import mlflow
+import mlflow.lightgbm
 import numpy as np
 import pandas as pd
 
@@ -65,22 +66,17 @@ for c in X.columns:
 
 # COMMAND ----------
 
-# Load the registered model by alias and predict probabilities. `pyfunc`
-# returns the raw LightGBM output for binary objectives — that's the
-# probability of the positive (churned) class, in [0, 1]. Multiply by 100
-# and clip to keep the score range the frontend assumes (UI thresholds:
-# <40 low, 40-69 medium, >=70 high).
-model = mlflow.pyfunc.load_model(MODEL_URI)
+# Load the registered model by alias and predict probabilities. We use the
+# `lightgbm` flavor (raw Booster) rather than `pyfunc` so the prediction path
+# isn't subject to pyfunc's strict signature enforcement, which rejects
+# pandas `category` dtype columns even when the model was trained on them.
+# `Booster.predict` on a binary objective returns a 1-d array of positive-
+# class probabilities in [0, 1]. Multiply by 100 and clip to keep the score
+# range the frontend assumes (UI thresholds: <40 low, 40-69 medium, >=70 high).
+booster = mlflow.lightgbm.load_model(MODEL_URI)
 print(f"loaded {MODEL_URI}")
 
-raw_scores = model.predict(X)
-# Some flavors return a 2-d array (n, 1) or (n, 2); collapse to 1-d positive
-# probabilities for the binary-classifier case.
-arr = np.asarray(raw_scores)
-if arr.ndim == 2:
-    arr = arr[:, -1] if arr.shape[1] > 1 else arr[:, 0]
-churn_prob = arr.astype(float)
-
+churn_prob = np.asarray(booster.predict(X)).astype(float)
 scores = np.clip(np.round(churn_prob * 100.0), 0, 100).astype(int)
 
 scored_pdf = features_pdf[
