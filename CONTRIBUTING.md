@@ -21,7 +21,7 @@ header for instructions.
 
 ## Running checks locally
 
-The same checks CI runs:
+Run before pushing:
 
 ```bash
 # Python
