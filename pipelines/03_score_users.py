@@ -77,7 +77,16 @@ booster = mlflow.lightgbm.load_model(MODEL_URI)
 print(f"loaded {MODEL_URI}")
 
 churn_prob = np.asarray(booster.predict(X)).astype(float)
-scores = np.clip(np.round(churn_prob * 100.0), 0, 100).astype(int)
+
+# Map probabilities to percentile-rank scores. Raw `prob * 100` would cluster
+# everything into a narrow band when AUC is near random (the synthetic-data
+# case — see open_points.md #29 and the caveat in 03a_train_churn_model.py),
+# leaving the demo's "high risk" tier empty. Percentile-ranking guarantees a
+# 0-100 spread regardless of model calibration; the model still drives the
+# *ordering*. Production deployments with calibrated probabilities can
+# replace this with `prob * 100`.
+score_pct = pd.Series(churn_prob).rank(pct=True, method="average").to_numpy()
+scores = np.clip(np.round(score_pct * 100.0), 0, 100).astype(int)
 
 scored_pdf = features_pdf[
     [
