@@ -151,12 +151,19 @@ with mlflow.start_run(run_name="lightgbm_churn") as run:
     mlflow.set_tag("feature_count", str(feature_count))
     mlflow.set_tag("auc", f"{auc:.4f}")
 
-    # Log a small input-example so the registered model carries a signature.
+    # UC model registry rejects models that lack signature metadata, and
+    # `input_example` alone does not infer a signature for the LightGBM
+    # flavor in this MLflow version. Build the signature explicitly from
+    # the training X / predicted-y pair so registration succeeds.
+    from mlflow.models import infer_signature
+
     input_example = X_train.head(5)
+    signature = infer_signature(X_train, booster.predict(X_train))
     mlflow.lightgbm.log_model(
         booster,
         artifact_path="model",
         input_example=input_example,
+        signature=signature,
     )
 
     model_uri = f"runs:/{run.info.run_id}/model"
